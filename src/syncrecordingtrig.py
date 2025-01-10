@@ -164,15 +164,12 @@ class CameraCaptureThread(threading.Thread):
         global frame_count 
         global total_frames       
         while not self.stop_event.is_set():
-            if self.trigger_event.wait(timeout=0.1):  # Timeout ensures periodic checking for stop_event
-                #timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            if self.trigger_event.wait(timeout=0.0001):  # Timeout ensures periodic checking for stop_event
                 frame = self.camera.capture_array()
-                #yuv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV)
-                #y_channel, u_channel, v_channel = cv2.split(yuv_frame)
                 filename = os.path.join(
                     self.output_dir, f"{self.camera_name}_{frame_count:04d}.jpg"
                 )
-                cv2.imwrite(filename, frame, [cv2.IMWRITE_JPEG_QUALITY, 100])
+                cv2.imwrite(filename, frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
                 total_frames += 1
                 
@@ -188,7 +185,7 @@ def FindExposure(shutter_speed, camera):
     camera.set_controls({'AeEnable': True, 'ExposureTime': shutter_speed, 'AwbEnable': True})
 
     # Capture an image or allow some time for the camera to adjust
-    time.sleep(.5)  # Give time for the camera to adjust exposure
+    time.sleep(1)  # Give time for the camera to adjust exposure
 
     metadata = camera.capture_metadata()
 
@@ -197,6 +194,7 @@ def FindExposure(shutter_speed, camera):
        # Extract the analogue gain
     auto_gain = metadata.get("AnalogueGain", None)
     auto_shutter = metadata.get("ExposureTime", None)
+    auto_color_gains = metadata.get("ColourGains", None)
 
     if auto_shutter > shutter_speed:
         shutter = shutter_speed
@@ -209,10 +207,12 @@ def FindExposure(shutter_speed, camera):
     camera.stop()
 
     # Return the locked shutter speed and the calculated gain
-    return shutter, gain
+    return shutter, gain, auto_color_gains
 
 
 def main():
+    GPIO.output(LED_PIN, GPIO.LOW)
+    
     global total_frames, start_time, frame_count
     frame_count = 0
     total_frames = 0
@@ -242,29 +242,26 @@ def main():
 
     GPIO.output(IR_PIN_1, GPIO.HIGH)
     GPIO.output(IR_PIN_2, GPIO.HIGH)
-    shutter, gain = FindExposure(10000, camera1)
-    GPIO.output(IR_PIN_1, GPIO.LOW)
-    GPIO.output(IR_PIN_2, GPIO.LOW)
+    shutter, gain, color_gains = FindExposure(10000, camera1)
 
     print(f"gain set at {gain}")
     print(f"shutter set at {shutter}")
 
     camera_controls = {
-        "ExposureTime": shutter,
-        "AnalogueGain": gain,
-        "AeEnable": False,
-        "AwbEnable": False,
+    "AeEnable": False,  # Disabling auto exposure
+    "AwbEnable": False,  # Disabling auto white balance
+    "ExposureTime": shutter,
+    "AnalogueGain": gain,
+    "ColourGains": (color_gains)
     }
+
     camera1.set_controls(camera_controls)
     camera2.set_controls(camera_controls)
-    GPIO.output(LED_PIN, GPIO.LOW)
     GPIO.output(IR_PIN_1, GPIO.LOW)
     GPIO.output(IR_PIN_2, GPIO.LOW)
 
     # Start recording
     GPIO.output(LED_PIN, GPIO.HIGH)
-    GPIO.output(IR_PIN_1, GPIO.HIGH)
-    GPIO.output(IR_PIN_2, GPIO.HIGH)
     camera1.start()
     camera2.start()
     print('begin recording')
