@@ -173,7 +173,6 @@ class CameraCaptureThread(threading.Thread):
 
                 total_frames += 1
                 
-                #print('succesful captre', self.camera_name)
                 self.trigger_event.clear()
 
 def FindExposure(shutter_speed, camera):
