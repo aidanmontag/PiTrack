@@ -1,9 +1,17 @@
+#
+# calibrate - Calibrate a camera using ChArUco boards
+#
+# fp
+# January 2025
+#
+
 import numpy as np
 import cv2 as cv
 import cv2.aruco as aruco
 import glob
 import os
 
+# debug path crap
 print("Current Working Directory:", os.getcwd())
 
 # Define the ArUco dictionary (Use a larger dictionary for safety)
@@ -70,7 +78,13 @@ for fname in images:
             scale_factor = 1080 / img.shape[0]  # Scale to 1080px height
             scaled_img = cv.resize(img, None, fx=scale_factor, fy=scale_factor, interpolation=cv.INTER_AREA)
 
-            cv.drawChessboardCorners(scaled_img, (squaresX-1, squaresY-1), charuco_corners, True)
+            # Scale detected corner locations to match resized image
+            scaled_corners = charuco_corners.copy()  # Copy to avoid modifying original data
+            scaled_corners[:, 0, 0] *= scale_factor  # Scale x-coordinates
+            scaled_corners[:, 0, 1] *= scale_factor  # Scale y-coordinates
+
+            # Draw chessboard corners on the **scaled image**
+            cv.drawChessboardCorners(scaled_img, (squaresX-1, squaresY-1), scaled_corners, True)
 
             cv.imshow("Scaled Chessboard Corners", scaled_img)
             cv.waitKey(0)
